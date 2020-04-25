@@ -206,7 +206,7 @@ def updatescores(context):
         for name in newscores.keys():
             forteam = " for " + teamname if name != teamname else ""
             if name not in scores:
-                context.bot.send_message(chat_id=chat_id,
+                context.bot.send_message(chat_id=chat_id, disable_notification=True,
                                          text='New member: {0} has joined {1}!'.format(name, teamname))
             elif name != teamname and newscores[name]['teamrank'] < scores[name]['teamrank']:
                 context.bot.send_message(chat_id=chat_id,
@@ -219,19 +219,19 @@ def updatescores(context):
                     done = True
                     if step >= newscores[name]['fullrank']:
                         if step < scores[name]['fullrank']:
-                           context.bot.send_message(chat_id=chat_id,
+                           context.bot.send_message(chat_id=chat_id, disable_notification=True,
                                          text='{0} is now in the overall top {1}!'.format(name, step))
                     else:
                         done = False
                     if step > int(scores[name]['wu']):
                         if step <= int(newscores[name]['wu']):
-                           context.bot.send_message(chat_id=chat_id,
+                           context.bot.send_message(chat_id=chat_id, disable_notification=True,
                                          text='{0} has processed {1} work units{2}!'.format(name, step, forteam))
                     else:
                         done = False
                     if step > int(scores[name]['score']):
                         if step <= int(newscores[name]['score']):
-                           context.bot.send_message(chat_id=chat_id,
+                           context.bot.send_message(chat_id=chat_id, disable_notification=True,
                                          text='{0} has earned {1} credit{2}!'.format(name, step, forteam))
                     else:
                         done = False
