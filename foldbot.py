@@ -185,9 +185,23 @@ def updatescores(context):
     chat_id = context.job.context[0]
     chat_data = context.job.context[1]
     if 'hometeam' not in chat_data: return # nothing to do
-    # some shorthand references
     if chat_data['lastcheck'] > context.bot_data['updated']: return
     chat_data['lastcheck'] = datetime.now(timezone.utc)
+    # Pretty formatting
+    numbers = { 1000000: "one million",
+                2000000: "two million",
+                5000000: "five million",
+               10000000: "ten million",
+               20000000: "20 million",
+               50000000: "50 million",
+              100000000: "100 million",
+              200000000: "200 million",
+              500000000: "500 million",
+             1000000000: "one billion",
+             2000000000: "two billion",
+             5000000000: "five billion" }
+
+    # some shorthand references
     team = chat_data['hometeam']
     teams = context.bot_data['teams']
     donors = context.bot_data['donors']
@@ -220,19 +234,19 @@ def updatescores(context):
                     if step >= newscores[name]['fullrank']:
                         if step < scores[name]['fullrank']:
                            context.bot.send_message(chat_id=chat_id, disable_notification=True,
-                                         text='{0} is now in the overall top {1}!'.format(name, step))
+                               text='{0} is now in the overall top {1}!'.format(name, numbers.get(step,step)))
                     else:
                         done = False
                     if step > int(scores[name]['wu']):
                         if step <= int(newscores[name]['wu']):
                            context.bot.send_message(chat_id=chat_id, disable_notification=True,
-                                         text='{0} has processed {1} work units{2}!'.format(name, step, forteam))
+                               text='{0} has processed {1} work units{2}!'.format(name, numbers.get(step,step), forteam))
                     else:
                         done = False
                     if step > int(scores[name]['score']):
                         if step <= int(newscores[name]['score']):
                            context.bot.send_message(chat_id=chat_id, disable_notification=True,
-                                         text='{0} has earned {1} credit{2}!'.format(name, step, forteam))
+                               text='{0} has earned {1} credit{2}!'.format(name, numbers.get(step,step), forteam))
                     else:
                         done = False
                 # https://stackoverflow.com/questions/4081217/how-to-modify-list-entries-during-for-loop
