@@ -1,4 +1,5 @@
 from telegram.ext import Updater, InlineQueryHandler, CommandHandler, PicklePersistence
+from telegram import ParseMode
 import requests
 import re
 import logging
@@ -266,12 +267,13 @@ def getstats(update, context):
     teams = context.bot_data['teams']
     teamname = teams[team]['name']
     scores = context.chat_data['scores']
-    message = 'Team: {0}({name}) - Credit: {score} Rank: {rank} WU: {wu}.'.format(team, **teams[team])
+    message = 'Team: {0}({name})\nCredit: {score} Rank: {rank} WU: {wu}.'.format(team, **teams[team])
     for name in sorted(scores, key=lambda x: scores[x]['teamrank']):
         if name == teamname: continue
-        message += '\n{teamrank}. ({fullrank})   \t{0}   \tCredit: {score}   \tWU: {wu}'.format(name, **scores[name])
+        frank = '({0})'.format(scores[name]['fullrank'])
+        message += '\n{teamrank: >2}.{frank: >8} {name: <16}Cr:{score: >9} WU:{wu: >4}'.format(name=name, frank=frank, **scores[name])
     print("Stats message: " + message)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+    context.bot.send_message(chat_id=update.effective_chat.id, text='`' + message + '`', parse_mode=ParseMode.MARKDOWN_V2)
         
 
 def main():
