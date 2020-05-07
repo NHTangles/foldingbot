@@ -8,9 +8,11 @@ import bz2
 import json
 from local import BOTTOKEN
 
-def start(update, context):
-    chat = update.effective_chat.id
+def init(context):
+    log = logging.getLogger('foldbot')
+    log.info('init called - starting up.')
     if not context.bot_data.get('global_init', False):
+        log.info('init - initialising global state from scratch...')
         context.bot_data['global_init'] = True
         context.bot_data['teamurl'] = 'https://apps.foldingathome.org/daily_team_summary.txt.bz2'
         context.bot_data['donorurl'] = 'https://apps.foldingathome.org/daily_user_summary.txt.bz2'
@@ -19,6 +21,9 @@ def start(update, context):
         context.bot_data['teams'] = {}
         context.bot_data['members'] = {}
         context.bot_data['donors'] = {}
+
+def start(update, context):
+    chat = update.effective_chat.id
     teams = context.bot_data['teams']
     if 'hometeam' in context.chat_data and context.chat_data['hometeam'] in teams:
         context.bot.send_message(chat_id=chat,
@@ -77,6 +82,7 @@ def update_stats(context):
     r = requests.head(teamurl)
     d = datetime.strptime(r.headers['last-modified'],'%a, %d %b %Y %H:%M:%S %Z')
     teams = context.bot_data['teams']
+    log = logging.getLogger('foldbot')
     if d > context.bot_data['lastmodt']:
         r = requests.get(teamurl)
         if r.ok:
@@ -88,7 +94,7 @@ def update_stats(context):
                 #print(teamline.decode('utf-8').split('\t'))
                 teamfields = teamline.decode('utf-8').split('\t')
                 if tbc: # see 'except' below
-                    print('Continued line {0}: {1}'.format(rank, '|'.join(teamfields)))
+                    log.info('Continued line {0}: {1}'.format(rank, '|'.join(teamfields)))
                     tbc = False
                     (score, wu) = teamfields[-2:] # there may be more of the name field, but those assholes don't deserve the effort
                     teams[team] = {k: v for k, v in (('name', name), ('score', score), ('wu', wu), ('rank', rank))}
@@ -97,7 +103,7 @@ def update_stats(context):
                 try:
                     (team, name, score, wu) = teamfields
                 except:
-                    print('There was a problem with line {0}: {1}'.format(rank, '|'.join(teamfields)))
+                    log.warning('There was a problem with line {0}: {1}'.format(rank, '|'.join(teamfields)))
                     (team, name) = teamfields[0:2]
                     if len(teamfields) < 4:
                         # some jerks put line breaks in their team name because they can.
@@ -125,7 +131,7 @@ def update_stats(context):
                 try: 
                     (name, score, wu, team) = donorline.decode('utf-8').split('\t')
                 except:
-                    print ('WARNING: There was a problem with the following donor: ' + donorline.decode('utf-8'))
+                    log.warning('There was a problem with the following donor: ' + donorline.decode('utf-8'))
                     continue
                 if name not in donors: donors[name] = {}
                 donors[name]['wu'] = donors[name].get('wu', 0) + int(wu)
@@ -272,7 +278,7 @@ def getstats(update, context):
         if name == teamname: continue
         frank = '({0})'.format(scores[name]['fullrank'])
         message += '\n{teamrank: >2}.{frank: >8} {name: <16}Cr:{score: >9} WU:{wu: >4}'.format(name=name, frank=frank, **scores[name])
-    print("Stats message: " + message)
+    #print("Stats message: " + message)
     context.bot.send_message(chat_id=update.effective_chat.id, text='`' + message + '`', parse_mode=ParseMode.MARKDOWN_V2)
         
 
@@ -284,6 +290,7 @@ def main():
     jq = updater.job_queue
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                         level=logging.INFO)
+    jq.run_once(init, when=0)
     dp.add_handler(CommandHandler('start',start))
     dp.add_handler(CommandHandler('woof',bop))
     dp.add_handler(CommandHandler('team',setteam))
