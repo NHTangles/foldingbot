@@ -12,7 +12,7 @@ def init(context):
     log = logging.getLogger('foldbot')
     log.info('init called - starting up.')
     if not context.bot_data.get('global_init', False):
-        log.info('init - initialising global state from scratch...')
+        log.warning('init - initialising global state from scratch...')
         context.bot_data['global_init'] = True # so we know we've been here (or read persistent state from file)
         context.bot_data['teamurl'] = 'https://apps.foldingathome.org/daily_team_summary.txt.bz2'
         context.bot_data['donorurl'] = 'https://apps.foldingathome.org/daily_user_summary.txt.bz2'
@@ -82,12 +82,13 @@ def update_stats(context):
     # 1. if team data has refreshed, rebuild 'teams' dict with total score, rank, wu
     # 2. if donor data has refreshed, (a) rebuild 'donors' dict (sum of contributions per donor across teams)
     #                                 (b) rebuild 'members' dict (individual contributrions per donor to each team)
+    log = logging.getLogger('foldbot')
+    log.info('update_stats')
     if 'teamurl' not in context.bot_data: return  # not initialised - should not happen
     teamurl = context.bot_data['teamurl']
     r = requests.head(teamurl)
     d = datetime.strptime(r.headers['last-modified'],'%a, %d %b %Y %H:%M:%S %Z')
     teams = context.bot_data['teams']
-    log = logging.getLogger('foldbot')
     updated = False
     if d > context.bot_data['lastmodt']:
         r = requests.get(teamurl)
@@ -121,7 +122,6 @@ def update_stats(context):
                         (score, wu) = teamfields[-2:]
                 teams[team] = {k: v for k, v in (('name', name), ('score', score), ('wu', wu), ('rank', rank))}
             context.bot_data['teams'] = teams
-            # timestamping to help chat-based update jobs know when there might be work to do
             updated = True
     donorurl = context.bot_data['donorurl']
     r = requests.head(donorurl)
@@ -220,13 +220,18 @@ def updatescores(context):
              2000000000: "two billion",
              5000000000: "five billion" }
 
+    log = logging.getLogger('foldbot')
     # some shorthand references
     teams = context.bot_data['teams']
     donors = context.bot_data['donors']
     members = context.bot_data['members']
     subs = context.bot_data['subs']
+
     for team in subs:
-        if team not in teams: return # probably should warn here
+        log.info('updatescores - team: {0}'.format(team))
+        if team not in teams:
+            log.warning ("Team {0} Not foud - not updating".format(team))
+            continue
         teamname = teams[team]['name']
         newscores = {}
         newscores[teamname] = { 'teamrank': 0, 'fullrank': teams[team]['rank'],
@@ -253,19 +258,19 @@ def updatescores(context):
                         if step >= newscores[name]['fullrank']:
                             if step < scores[name]['fullrank']:
                                 send_milestone(context, team,
-                                '{0} is now in the overall top {1}!'.format(name, numbers.get(step,step)))
-                    else:
-                        done = False
-                    if step > int(scores[name]['wu']):
-                        if step <= int(newscores[name]['wu']):
-                           send_milestone(context, team,
-                               '{0} has processed {1} work units{2}!'.format(name, numbers.get(step,step), forteam))
+                                    '{0} is now in the overall top {1}!'.format(name, numbers.get(step,step)))
+                        else:
+                            done = False
+                        if step > int(scores[name]['wu']):
+                            if step <= int(newscores[name]['wu']):
+                                send_milestone(context, team,
+                                   '{0} has processed {1} work units{2}!'.format(name, numbers.get(step,step), forteam))
                         else:
                             done = False
                         if step > int(scores[name]['score']):
                             if step <= int(newscores[name]['score']):
                                send_milestone(context, team,
-                               '{0} has earned {1} credit{2}!'.format(name, numbers.get(step,step), forteam))
+                                   '{0} has earned {1} credit{2}!'.format(name, numbers.get(step,step), forteam))
                         else:
                             done = False
                     # https://stackoverflow.com/questions/4081217/how-to-modify-list-entries-during-for-loop
