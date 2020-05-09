@@ -44,6 +44,15 @@ def bop(update, context):
     chat_id = update.effective_chat.id
     context.bot.send_photo(chat_id=chat_id, photo=url)
 
+def getcert(update, context):
+    chat_id = update.effective_chat.id
+    try: team = context.chat_data['hometeam']
+    except:
+        context.bot.send_message(chat_id=chat_id, text="No team. Please set with /team <team id>")
+        return
+    url = 'https://apps.foldingathome.org/awards?team={0}'.format(team)
+    context.bot.send_photo(chat_id=chat_id, photo=url)
+
 def setteam(update, context):
     cd = context.chat_data
     bd = context.bot_data
@@ -312,6 +321,7 @@ def main():
     dp.add_handler(CommandHandler('team',setteam))
     dp.add_handler(CommandHandler('milestones',setmilestones))
     dp.add_handler(CommandHandler('stats',getstats))
+    dp.add_handler(CommandHandler('cert',getcert))
     jq.run_repeating(update_stats, interval=600, first=10)
     updater.start_polling()
     updater.idle()
