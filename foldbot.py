@@ -3,7 +3,7 @@ from telegram import ParseMode
 import requests
 import re
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
 import bz2
 import json
 from local import BOTTOKEN
@@ -33,6 +33,7 @@ def start(update, context):
                text="Folders of {0}, let's roll!".format(teams[context.chat_data['hometeam']]['name']))
     else:
         context.bot.send_message(chat_id=chat, text="I'm a folding bot, like Optimus Prime.")
+        context.bot.send_message(chat_id=chat, text='Please set your team with "/team <teamNum>", or type "/help" for more')
 
 def get_url():
     contents = requests.get('https://random.dog/woof.json').json()
@@ -50,7 +51,7 @@ def getcert(update, context):
     except:
         context.bot.send_message(chat_id=chat_id, text="No team. Please set with /team <team id>")
         return
-    url = 'https://apps.foldingathome.org/awards?team={0}'.format(team)
+    url = 'https://apps.foldingathome.org/awards?team={0}&time={1}'.format(team, datetime.now().timestamp())
     context.bot.send_photo(chat_id=chat_id, photo=url)
 
 def setteam(update, context):
@@ -307,6 +308,60 @@ def getstats(update, context):
     #print("Stats message: " + message)
     context.bot.send_message(chat_id=update.effective_chat.id, text='`' + message + '`', parse_mode=ParseMode.MARKDOWN_V2)
 
+def dailies(context):
+    if 'daily' not in context.bot_data: context.bot_data['daily'] = {}
+    daily = context.bot_data['daily']
+    subs = context.bot_data['subs']
+    milestones = context.bot_data['milestones']
+    scores = context.bot_data['scores']
+    teams = context.bot_data['teams']
+    for team in subs:
+        if team in daily:
+            teamname = teams[team]['name']
+            message = 'Last 24h: {0}({name}) - Credit: {score} WU: {wu}.'.format(team,
+                      name = teamname,
+                      wu =  int(teams[team]['wu']) - int(daily[team]['wu']),
+                      score = int(teams[team]['score']) - int(daily[team]['score']))
+
+            delta = {}
+            for name in members[team]:
+                delta[name] = { 'wu'   : members[team][name]['wu']
+                                        - (daily[team][name]['wu'] if name in daily[team] else 0),
+                                'score': members[team][name]['score']
+                                        - (daily[team][name]['score'] if name in daily[team] else 0) }
+
+            rank = 0
+            for name in sorted(delta, key=lambda x: delta[x]['score'], reverse=True):
+                rank += 1
+                message += '\n{rank: >2}. {name: <16}Credit:{score: >7} WU:{wu: >3}'.format(rank=rank, name=name, **delta[name])
+
+            for chat in context.bot_data['subs'][team]:
+                if chat in context.bot_data['milestones']:
+                    context.bot.send_message(chat_id=chat,  disable_notification=True,
+                                             text='`' + message + '`',
+                                             parse_mode=ParseMode.MARKDOWN_V2)
+        # Ugh this shit will break if someone names themself 'score' or 'wu' - TODO: fix.
+        daily[team] = { 'wu': teams[team]['wu'], 'score': teams[team]['score'] }
+        for name in members[team]:
+            daily[team][name] = { 'wu'   : members[team][name]['wu'],
+                                  'score': members[team][name]['score'] }
+    for team in daily:
+        if team not in subs: del daily[team]
+
+def listcmds(update, context):
+    msg = ''
+    for (name, callback, desc) in commands:
+        msg += '/{0}: {1}\n'.format(name, desc)
+    context.bot.send_message(chat_id=update.effective_chat.id, text = msg)
+
+commands = [('start', start, 'Start a session with the bot - provides some basic instructions'),
+            ('team', setteam, 'Tell the bot which team you or your chatgroup is following'),
+            ('milestones', setmilestones, 'Turn on/off reporting of folding milsetones for your team or its members'),
+            ('stats', getstats, 'Print current stats for your team or its members'),
+            ('cert', getcert, 'Show the current folding award certificate for the team'),
+            ('help', listcmds, 'Show this list of commands and what they do'),
+            ('woof', bop, 'Print a doggy picture, for no reason') ]
+
 def main():
     updater = Updater(token=BOTTOKEN,
                       persistence=PicklePersistence(filename='foldbot.dat'),
@@ -316,13 +371,11 @@ def main():
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                         level=logging.INFO)
     jq.run_once(init, when=0)
-    dp.add_handler(CommandHandler('start',start))
-    dp.add_handler(CommandHandler('woof',bop))
-    dp.add_handler(CommandHandler('team',setteam))
-    dp.add_handler(CommandHandler('milestones',setmilestones))
-    dp.add_handler(CommandHandler('stats',getstats))
-    dp.add_handler(CommandHandler('cert',getcert))
+    for (name, callback, desc) in commands:
+        dp.add_handler(CommandHandler(name, callback))
+
     jq.run_repeating(update_stats, interval=600, first=10)
+    jq.run_daily(dailies, time(hour=0))
     updater.start_polling()
     updater.idle()
 
