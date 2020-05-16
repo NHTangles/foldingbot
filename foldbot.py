@@ -315,6 +315,7 @@ def dailies(context):
     milestones = context.bot_data['milestones']
     scores = context.bot_data['scores']
     teams = context.bot_data['teams']
+    members = context.bot_data['members']
     for team in subs:
         if team in daily:
             teamname = teams[team]['name']
@@ -325,9 +326,9 @@ def dailies(context):
 
             delta = {}
             for name in members[team]:
-                delta[name] = { 'wu'   : members[team][name]['wu']
+                delta[name] = { 'wu'   : int(members[team][name]['wu'])
                                         - (daily[team][name]['wu'] if name in daily[team] else 0),
-                                'score': members[team][name]['score']
+                                'score': int(members[team][name]['score'])
                                         - (daily[team][name]['score'] if name in daily[team] else 0) }
 
             rank = 0
@@ -336,15 +337,15 @@ def dailies(context):
                 message += '\n{rank: >2}. {name: <16}Credit:{score: >7} WU:{wu: >3}'.format(rank=rank, name=name, **delta[name])
 
             for chat in context.bot_data['subs'][team]:
-                if chat in context.bot_data['milestones']:
+                if chat in milestones:
                     context.bot.send_message(chat_id=chat,  disable_notification=True,
                                              text='`' + message + '`',
                                              parse_mode=ParseMode.MARKDOWN_V2)
         # Ugh this shit will break if someone names themself 'score' or 'wu' - TODO: fix.
         daily[team] = { 'wu': teams[team]['wu'], 'score': teams[team]['score'] }
         for name in members[team]:
-            daily[team][name] = { 'wu'   : members[team][name]['wu'],
-                                  'score': members[team][name]['score'] }
+            daily[team][name] = { 'wu'   : int(members[team][name]['wu']),
+                                  'score': int(members[team][name]['score']) }
     for team in daily:
         if team not in subs: del daily[team]
 
