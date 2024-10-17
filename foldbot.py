@@ -334,7 +334,8 @@ def dailies(context):
             rank = 0
             for name in sorted(delta, key=lambda x: delta[x]['score'], reverse=True):
                 rank += 1
-                message += '\n{rank: >2}. {name: <16}Credit:{score: >7} WU:{wu: >3}'.format(rank=rank, name=name, **delta[name])
+                if int(delta[name][score]) > 0:
+                    message += '\n{rank: >2}. {name: <16}Credit:{score: >7} WU:{wu: >3}'.format(rank=rank, name=name, **delta[name])
 
             for chat in context.bot_data['subs'][team]:
                 if chat in milestones:
