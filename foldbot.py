@@ -1,5 +1,5 @@
-from telegram.ext import Updater, InlineQueryHandler, CommandHandler, PicklePersistence
-from telegram import ParseMode
+from telegram.ext import Application, CommandHandler, PicklePersistence, ContextTypes
+from telegram.constants import ParseMode
 import requests
 import re
 import logging
@@ -8,7 +8,7 @@ import bz2
 import json
 from local import BOTTOKEN
 
-def init(context):
+async def init(context: ContextTypes.DEFAULT_TYPE):
     log = logging.getLogger('foldbot')
     log.info('init called - starting up.')
     if not context.bot_data.get('global_init', False):
@@ -25,36 +25,36 @@ def init(context):
         context.bot_data['milestones'] = [] # list of chat_ids that are subscribed to 'milestone' updates
         context.bot_data['scores'] = {} # dict of curent scores per member per subscribed team (and team totals)
 
-def start(update, context):
+async def start(update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat.id
     teams = context.bot_data['teams']
     if 'hometeam' in context.chat_data and context.chat_data['hometeam'] in teams:
-        context.bot.send_message(chat_id=chat,
+        await context.bot.send_message(chat_id=chat,
                text="Folders of {0}, let's roll!".format(teams[context.chat_data['hometeam']]['name']))
     else:
-        context.bot.send_message(chat_id=chat, text="I'm a folding bot, like Optimus Prime.")
-        context.bot.send_message(chat_id=chat, text='Please set your team with "/team <teamNum>", or type "/help" for more')
+        await context.bot.send_message(chat_id=chat, text="I'm a folding bot, like Optimus Prime.")
+        await context.bot.send_message(chat_id=chat, text='Please set your team with "/team <teamNum>", or type "/help" for more')
 
 def get_url():
     contents = requests.get('https://random.dog/woof.json').json()
     url = contents['url']
     return url
 
-def bop(update, context):
+async def bop(update, context: ContextTypes.DEFAULT_TYPE):
     url = get_url()
     chat_id = update.effective_chat.id
-    context.bot.send_photo(chat_id=chat_id, photo=url)
+    await context.bot.send_photo(chat_id=chat_id, photo=url)
 
-def getcert(update, context):
+async def getcert(update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     try: team = context.chat_data['hometeam']
     except:
-        context.bot.send_message(chat_id=chat_id, text="No team. Please set with /team <team id>")
+        await context.bot.send_message(chat_id=chat_id, text="No team. Please set with /team <team id>")
         return
     url = 'https://apps.foldingathome.org/awards?team={0}&time={1}'.format(team, datetime.now().timestamp())
-    context.bot.send_photo(chat_id=chat_id, photo=url)
+    await context.bot.send_photo(chat_id=chat_id, photo=url)
 
-def setteam(update, context):
+async def setteam(update, context: ContextTypes.DEFAULT_TYPE):
     cd = context.chat_data
     bd = context.bot_data
     chat = update.effective_chat.id
@@ -79,16 +79,17 @@ def setteam(update, context):
         bd['subs'][tid].append(chat)
 
         if context.args[0] not in bd['teams']:
-            context.bot.send_message(chat_id=chat, text='WARNING: Team {0} not found.'.format(tid))
+            await context.bot.send_message(chat_id=chat, text='WARNING: Team {0} not found.'.format(tid))
         else:
-            context.bot.send_message(chat_id=chat,
+            await context.bot.send_message(chat_id=chat,
                                      text='Now following team: {0} - {1}.'.format(tid,
                                       bd['teams'][tid]['name']))
     else:
         tid = context.chat_data.get('hometeam', 'not set')
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Following team: {0}.'.format(tid))
+        await context.bot.send_message(chat_id=update.effective_chat.id, text='Following team: {0}.'.format(tid))
 
-def update_stats(context):
+
+async def update_stats(context: ContextTypes.DEFAULT_TYPE):
     # 1. if team data has refreshed, rebuild 'teams' dict with total score, rank, wu
     # 2. if donor data has refreshed, (a) rebuild 'donors' dict (sum of contributions per donor across teams)
     #                                 (b) rebuild 'members' dict (individual contributrions per donor to each team)
@@ -168,9 +169,9 @@ def update_stats(context):
             context.bot_data['members'] = members
             updated = True
     if updated:
-        updatescores(context)
+        await updatescores(context)
 
-def setmilestones(update, context):
+async def setmilestones(update, context: ContextTypes.DEFAULT_TYPE):
     team = None
     chat = update.effective_chat.id
     if 'hometeam' in context.chat_data:
@@ -180,41 +181,41 @@ def setmilestones(update, context):
     teamstr = " for team " + team if team else ""
     if len(context.args) == 0:
         msr = "" if chat in context.bot_data['milestones'] else " not"
-        context.bot.send_message(chat_id=chat, text='milestones are{0} set{1}.'.format(msr, teamstr))
+        await context.bot.send_message(chat_id=chat, text='milestones are{0} set{1}.'.format(msr, teamstr))
         return
     if len(context.args) == 1:
         if context.args[0] == 'on':
             if chat in context.bot_data['milestones']:
-                context.bot.send_message(chat_id=chat,
+                await context.bot.send_message(chat_id=chat,
                                          text='milestones are already being reported{0}.'.format(teamstr))
                 return
             context.bot_data['milestones'].append(chat)
 
             if not team:
-                context.bot.send_message(chat_id=chat,
+                await context.bot.send_message(chat_id=chat,
                                          text='WARNING: milestones set, but no team to report on\nUse /team to set a team')
             else:
-                context.bot.send_message(chat_id=chat, text='milestones will be reported{0}.'.format(teamstr))
+                await context.bot.send_message(chat_id=chat, text='milestones will be reported{0}.'.format(teamstr))
             return
 
         if context.args[0] == 'off':
             if chat not in context.bot_data['milestones']:
-                context.bot.send_message(chat_id=chat,
+                await context.bot.send_message(chat_id=chat,
                                          text='milestone reporting is already off{0}.'.format(teamstr))
                 return
             context.bot_data['milestones'].remove(chat)
-            context.bot.send_message(chat_id=chat, text='milestones will not be reported{0}.'.format(teamstr))
+            await context.bot.send_message(chat_id=chat, text='milestones will not be reported{0}.'.format(teamstr))
             return
-    context.bot.send_message(chat_id=update.effective_chat.id, text='usage: /milestones [on|off]')
+    await context.bot.send_message(chat_id=update.effective_chat.id, text='usage: /milestones [on|off]')
 
 def send_milestone(context, team, message):
     for chat in context.bot_data['subs'][team]:
         if chat in context.bot_data['milestones']:
             context.bot.send_message(chat_id=chat,  disable_notification=True, text=message)
 
-def updatescores(context):
-    #chat_id = context.job.context[0]
-    #chat_data = context.job.context[1]
+async def updatescores(context: ContextTypes.DEFAULT_TYPE):
+    #chat_id = context.job.data[0]
+    #chat_data = context.job.data[1]
     #if 'hometeam' not in chat_data: return # nothing to do
     # Pretty formatting
     numbers = { 1000000: "one million",
@@ -254,10 +255,10 @@ def updatescores(context):
             for name in newscores.keys():
                 forteam = " for " + teamname if name != teamname else ""
                 if name not in scores:
-                    send_milestone(context, team,
+                    await send_milestone(context, team,
                                    'New member: {0} has joined {1}!'.format(name, teamname))
                 elif name != teamname and newscores[name]['teamrank'] < scores[name]['teamrank']:
-                    send_milestone(context, team,
+                    await send_milestone(context, team,
                                    '{0} has advanced to rank {1} in {2}!'.format(name,
                                               newscores[name]['teamrank'], teamname))
                 done = False
@@ -289,13 +290,13 @@ def updatescores(context):
         # done reporting, update values.
         context.bot_data['scores'][team] = newscores
 
-def getstats(update, context):
+async def getstats(update, context: ContextTypes.DEFAULT_TYPE):
     if 'hometeam' not in context.chat_data:
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Please set a team with /team first.')
+        await context.bot.send_message(chat_id=update.effective_chat.id, text='Please set a team with /team first.')
         return
     team = context.chat_data['hometeam']
     if  team not in context.bot_data['scores']:
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry I've just woken up.  No stats yet")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry I've just woken up.  No stats yet")
         return
     teams = context.bot_data['teams']
     teamname = teams[team]['name']
@@ -306,9 +307,9 @@ def getstats(update, context):
         frank = '({0})'.format(scores[name]['fullrank'])
         message += '\n{teamrank: >2}.{frank: >8} {name: <16}Cr:{score: >9} WU:{wu: >4}'.format(name=name, frank=frank, **scores[name])
     #print("Stats message: " + message)
-    context.bot.send_message(chat_id=update.effective_chat.id, text='`' + message + '`', parse_mode=ParseMode.MARKDOWN_V2)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text='`' + message + '`', parse_mode=ParseMode.MARKDOWN_V2)
 
-def dailies(context):
+async def dailies(context: ContextTypes.DEFAULT_TYPE):
     if 'daily' not in context.bot_data: context.bot_data['daily'] = {}
     daily = context.bot_data['daily']
     subs = context.bot_data['subs']
@@ -339,7 +340,7 @@ def dailies(context):
 
             for chat in context.bot_data['subs'][team]:
                 if chat in milestones:
-                    context.bot.send_message(chat_id=chat,  disable_notification=True,
+                    await context.bot.send_message(chat_id=chat,  disable_notification=True,
                                              text='`' + message + '`',
                                              parse_mode=ParseMode.MARKDOWN_V2)
         # Ugh this shit will break if someone names themself 'score' or 'wu' - TODO: fix.
@@ -350,11 +351,11 @@ def dailies(context):
     for team in daily:
         if team not in subs: del daily[team]
 
-def listcmds(update, context):
+async def listcmds(update, context: ContextTypes.DEFAULT_TYPE):
     msg = ''
     for (name, callback, desc) in commands:
         msg += '/{0}: {1}\n'.format(name, desc)
-    context.bot.send_message(chat_id=update.effective_chat.id, text = msg)
+    await context.bot.send_message(chat_id=update.effective_chat.id, text = msg)
 
 commands = [('start', start, 'Start a session with the bot - provides some basic instructions'),
             ('team', setteam, 'Tell the bot which team you or your chatgroup is following'),
@@ -365,21 +366,17 @@ commands = [('start', start, 'Start a session with the bot - provides some basic
             ('woof', bop, 'Print a doggy picture, for no reason') ]
 
 def main():
-    updater = Updater(token=BOTTOKEN,
-                      persistence=PicklePersistence(filename='foldbot.dat'),
-                      use_context=True)
-    dp = updater.dispatcher
-    jq = updater.job_queue
+    app = Application.builder().token(BOTTOKEN).persistence(persistence=PicklePersistence(filepath='foldbot.dat')).post_init(init).build()
+
+    jq = app.job_queue
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                         level=logging.INFO)
-    jq.run_once(init, when=0)
     for (name, callback, desc) in commands:
-        dp.add_handler(CommandHandler(name, callback))
+        app.add_handler(CommandHandler(name, callback))
 
     jq.run_repeating(update_stats, interval=600, first=10)
     jq.run_daily(dailies, time(hour=0))
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
