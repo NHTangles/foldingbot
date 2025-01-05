@@ -5,3 +5,4 @@
 local.py
 __pycache__/
 *.dat
+.venv/
